@@ -1,47 +1,63 @@
-# Bumble Pulse — Interactive Pre-Send Vibe Check
+# Bumble Pulse — Pre-Send Vibe Check
 
-A portfolio project built for the **Associate Product Manager, Bumble Date (2026)** application.
+A lightweight, LLM-powered message coaching tool that helps users write better opening messages on dating apps — before they hit send.
 
 **Live demo:** [bumble-apm.vercel.app](https://bumble-apm.vercel.app)
 
 ---
 
-## What is this?
+## The Problem
 
-Bumble Pulse is an LLM-powered pre-send guardrail that coaches users before they send their first message. It addresses two core problems in dating apps:
+First messages on dating apps have two failure modes:
 
-1. **Activation friction** — users face blank-canvas syndrome and default to low-effort openers ("hey") that get ignored
-2. **Safety & respect** — even with filters, users still receive objectifying or aggressive first messages
+1. **Low effort** — users default to "hey" or "what's up" because they don't know where to start. These get ignored.
+2. **Low safety** — some users send aggressive, objectifying, or non-contextual messages that make the experience worse for everyone.
 
-Before sending, a user can **Check Pulse**. The system acts as an AI judge, evaluating their draft against the recipient's specific profile context and returning an instant scorecard with three signals:
+Most platforms handle both problems reactively: low-effort messages just fail silently, and unsafe messages get reported after the damage is done.
 
-| Signal | What it measures |
-|---|---|
-| **Safety Status** | Binary pass/fail — flags harassment, objectification, sexual content, aggression |
-| **Tone Analysis** | Qualitative classification: Respectful / Forward / Objectifying / Inappropriate / Aggressive |
-| **Pulse Score** | 1–100 personalization score — how well the message references the recipient's actual profile |
+## The Idea
 
-A **Coach's Note** then gives a 1–2 sentence suggestion to improve the message before it reaches anyone's inbox.
+What if the platform intervened *before* the message was sent — not to rewrite it, but to coach the user?
 
----
+Bumble Pulse is a pre-send evaluation layer. You draft a message, hit **Check Pulse**, and instantly get:
 
-## Product Thesis
+- **Safety Status** — pass or fail, with a clear reason if flagged
+- **Tone Analysis** — how the message reads (Respectful / Forward / Objectifying / Inappropriate / Aggressive)
+- **Pulse Score** — a 1–100 personalization score measuring how well the message references the recipient's actual profile, not just their appearance
+- **Coach's Note** — a 1–2 sentence suggestion to improve before sending
 
-> Deploying generative AI to *write* messages for users degrades the dating ecosystem into bots talking to bots. Bumble Pulse shifts Trust & Safety from **reactive moderation** to **proactive, empathetic coaching** — augmenting human authenticity rather than replacing it.
-
-**Primary metric:** Increase Day-1 message response rate
-**Secondary metric:** Decrease Day-1 block/report rate for initial messages
+The key constraint: the system never *writes* the message for you. Generative openers degrade the ecosystem into bots talking to bots. The goal is to nudge human behavior, not replace it.
 
 ---
 
-## Features
+## Why this matters (the metrics)
 
-- **3 mock match profiles** (Sarah, David, Elena) with distinct bios and interest tags
-- **LLM-as-a-Judge** evaluation engine with structured JSON output schema
-- **Developer Logs toggle** — slide-up terminal drawer exposing raw LLM response and reasoning trace, demonstrating the system architecture to technical interviewers
-- **Adaptive Send button** — disabled on safety failures; only unlocked when a message passes the safety gate
-- **Confetti** on high-scoring personalized messages (score ≥ 76, safe)
-- **Profile-specific test cases** in the hint box for each match
+A real deployment of this pattern would target two things:
+
+| Metric | Direction | Why |
+|---|---|---|
+| Day-1 message response rate | ↑ | Better openers get more replies, improving activation |
+| Day-1 block/report rate for first messages | ↓ | Fewer aggressive openers means safer first impressions |
+
+These are leading indicators for the deeper goal: more people experiencing what a good match actually feels like.
+
+---
+
+## How it works
+
+The backend uses an **LLM-as-a-Judge** pattern: the model is not a conversationalist, it's an evaluator. It receives the recipient's profile context and the draft message, then returns a structured JSON object with four scored fields.
+
+```json
+{
+  "is_safe": true,
+  "tone": "Respectful",
+  "pulse_score": 85,
+  "coach_note": "Great job referencing Max and asking about hiking! Consider also asking about her favourite pizza spots.",
+  "reasoning_trace": "Message references a specific named detail from the bio (the dog, Max) and asks a genuine follow-up question about a stated interest (hiking). No objectifying language detected."
+}
+```
+
+The `reasoning_trace` is surfaced in a **Developer Logs** drawer (toggle top-right) — this is the part that matters architecturally. Quantifying subjective quality signals into a structured, auditable schema is the foundation for responsible AI deployment at scale: you can monitor drift, catch regressions, and A/B test prompt changes against a consistent baseline.
 
 ---
 
@@ -49,9 +65,9 @@ A **Coach's Note** then gives a 1–2 sentence suggestion to improve the message
 
 | Layer | Choice |
 |---|---|
-| Framework | Next.js 16 (App Router), TypeScript |
-| Styling | Tailwind CSS v4, Bumble brand colors (`#FFC629`) |
-| AI | OpenRouter → `openai/gpt-4o-mini` via OpenAI-compatible SDK |
+| Framework | Next.js (App Router), TypeScript |
+| Styling | Tailwind CSS v4 |
+| AI | OpenRouter → `openai/gpt-4o-mini` |
 | Deployment | Vercel |
 
 ---
@@ -64,13 +80,13 @@ cd Bumble-APM
 npm install
 ```
 
-Create a `.env.local` file:
+Create `.env.local`:
 
 ```
-OPENROUTER_API_KEY=your_openrouter_key_here
+OPENROUTER_API_KEY=your_key_here
 ```
 
-Get a free key at [openrouter.ai](https://openrouter.ai).
+Free keys at [openrouter.ai](https://openrouter.ai).
 
 ```bash
 npm run dev
@@ -80,32 +96,18 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## Architecture
+## Project structure
 
 ```
 app/
-├── page.tsx              # Client UI — profile selector, message input, scorecard
+├── page.tsx              # UI — profile selector, message input, scorecard
 ├── api/evaluate/
-│   └── route.ts          # POST handler — calls OpenRouter, validates + returns JSON
+│   └── route.ts          # POST handler — evaluates message, returns structured JSON
 lib/
-├── profiles.ts           # Hardcoded mock match profiles
+├── profiles.ts           # Mock match profiles (Sarah, David, Elena)
 └── types.ts              # EvaluationResult + Tone types
 ```
 
-The evaluation API accepts a `message` string and a `profileId`, looks up the profile server-side, and returns:
-
-```json
-{
-  "is_safe": true,
-  "tone": "Respectful",
-  "pulse_score": 85,
-  "coach_note": "Great job referencing Max and asking about hiking!",
-  "reasoning_trace": "Message references a specific profile detail..."
-}
-```
-
-The `reasoning_trace` field is surfaced in the Developer Logs drawer — this is the key architectural proof point: quantifying subjective safety and engagement into a baseline-driven quality gate is the infrastructure required for responsible, enterprise-grade AI deployment.
-
 ---
 
-*Built by Ali Hasan as part of the Bumble APM application, 2026.*
+*Ali Hasan, 2026*
