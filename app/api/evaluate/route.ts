@@ -2,12 +2,14 @@ import OpenAI from 'openai'
 import { NextRequest, NextResponse } from 'next/server'
 import { profiles } from '@/lib/profiles'
 
-const client = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY!,
-  baseURL: 'https://openrouter.ai/api/v1',
-})
+// Instantiated inside the handler so it's never called at build time
 
 export async function POST(req: NextRequest) {
+  const client = new OpenAI({
+    apiKey: process.env.OPENROUTER_API_KEY!,
+    baseURL: 'https://openrouter.ai/api/v1',
+  })
+
   try {
     const { message, profileId } = await req.json()
 
